@@ -96,7 +96,7 @@ SELECT customer_id,
 FROM order_info
 WHERE rank_num = 1
 
-Return:
+--Return:
 
 customer_id	product_name	order_count
 A		ramen		3
@@ -130,7 +130,7 @@ WITH diner_info AS
   FROM diner_info
   WHERE first_item = 1
   
-  Return:
+--Return:
   
   customer_id	product_name	join_date			order_date
 A		curry		2021-01-07T00:00:00.000Z	2021-01-07T00:00:00.000Z
@@ -160,7 +160,7 @@ SELECT customer_id,
 FROM diner_info
 WHERE first_item = 1
   
-Return:
+--Return:
   
 customer_id	product_name	join_date			order_date
 A		sushi		2021-01-07T00:00:00.000Z	2021-01-01T00:00:00.000Z
@@ -170,7 +170,43 @@ B		sushi		2021-01-09T00:00:00.000Z	2021-01-04T00:00:00.000Z
 
 -- 8. What is the total items and amount spent for each member before they became a member?
 
+SELECT c.customer_id,
+	   COUNT(s.product_id) AS total_items,
+       SUM(m.price) AS amount_spent
+FROM dannys_diner.members AS c
+	JOIN dannys_diner.sales AS s
+    	ON c.customer_id = s.customer_id
+    JOIN dannys_diner.menu AS m
+    	ON s.product_id = m.product_id
+WHERE order_date < join_date
+GROUP BY c.customer_id
+ORDER BY c.customer_id
+
+--Return
+
+customer_id	total_items	amount_spent
+A		2		25
+B		3		40
+
 
 -- 9.  If each $1 spent equates to 10 points and sushi has a 2x points multiplier - how many points would each customer have?
+
+SELECT s.customer_id,
+	   SUM (CASE 
+            	WHEN m.product_name = 'sushi' THEN price*20
+            	ELSE price*10 END) AS customer_points
+FROM dannys_diner.menu AS m
+	JOIN dannys_diner.sales AS s
+    	ON m.product_id = s.product_id
+GROUP BY s.customer_id 
+ORDER BY s.customer_id
+
+--Return:
+
+customer_id	customer_points
+A		860
+B		940
+C		360
+
 -- 10. In the first week after a customer joins the program (including their join date) they earn 2x points on all items, not just sushi - how many points do customer A and B have at the end of January?
 

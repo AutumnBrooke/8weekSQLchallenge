@@ -3,21 +3,21 @@ SELECT *
 FROM pizza_runner.customer_orders
 
 --Return:
-order_id	customer_id	pizza_id	exclusions	extras	order_time
-1	     101	          1			                2020-01-01T18:05:02.000Z
-2	     101	          1			                2020-01-01T19:00:52.000Z
-3	     102	          1			                2020-01-02T23:51:23.000Z
-3	     102	          2		                null	2020-01-02T23:51:23.000Z
-4	     103	          1	     	4		        2020-01-04T13:23:46.000Z
-4	     103	          1	    	4		        2020-01-04T13:23:46.000Z
-4	     103	          2	        4		        2020-01-04T13:23:46.000Z
-5	     104	          1	        null	        1	2020-01-08T21:00:29.000Z
-6	     101	          2	        null	        null	2020-01-08T21:03:13.000Z
-7	     105	          2	        null	        1	2020-01-08T21:20:29.000Z
-8	     102	          1	        null	        null	2020-01-09T23:54:33.000Z
-9	     103	          1	        4	        1, 5	2020-01-10T11:22:59.000Z
-10	     104	          1	        null	        null	2020-01-11T18:34:49.000Z
-10	     104	          1	        2, 6      	1, 4	2020-01-11T18:34:49.000Z
+order_id     customer_id   pizza_id	exclusions	extras	order_time
+1	     101	   1			                2020-01-01T18:05:02.000Z
+2	     101	   1			                2020-01-01T19:00:52.000Z
+3	     102	   1			                2020-01-02T23:51:23.000Z
+3	     102	   2		                null	2020-01-02T23:51:23.000Z
+4	     103	   1	     	4		        2020-01-04T13:23:46.000Z
+4	     103	   1	    	4		        2020-01-04T13:23:46.000Z
+4	     103	   2	        4		        2020-01-04T13:23:46.000Z
+5	     104	   1	        null	        1	2020-01-08T21:00:29.000Z
+6	     101	   2	        null	        null	2020-01-08T21:03:13.000Z
+7	     105	   2	        null	        1	2020-01-08T21:20:29.000Z
+8	     102	   1	        null	        null	2020-01-09T23:54:33.000Z
+9	     103	   1	        4	        1, 5	2020-01-10T11:22:59.000Z
+10	     104	   1	        null	        null	2020-01-11T18:34:49.000Z
+10	     104	   1	        2, 6      	1, 4	2020-01-11T18:34:49.000Z
 
 --We can see here there are both null and empty values. Let's replace all empty values with null values.
 CREATE TEMP TABLE cust_orders AS
@@ -25,16 +25,16 @@ CREATE TEMP TABLE cust_orders AS
 		 customer_id, 
 		 pizza_id, 
 		 CASE
-	    	WHEN exclusions = '' THEN NULL
-			WHEN exclusions = 'null' THEN NULL
-				ELSE exclusions
-					END AS exclusions_cleaned,
+	    	     WHEN exclusions = '' THEN NULL      --through exploration I found empty strings as well as null values
+		     WHEN exclusions = 'null' THEN NULL
+		     ELSE exclusions
+		 END AS exclusions_cleaned,
 		 CASE
-			WHEN extras = '' THEN null
-			WHEN extras = 'NaN' THEN null
-				ELSE extras
-					END AS extras_cleaned,
-		order_time
+		     WHEN extras = '' THEN NULL          --through exploration I found empty strings as well as null values
+		     WHEN extras = 'null' THEN NULL
+		     ELSE extras
+		 END AS extras_cleaned,
+		 order_time
   FROM pizza_runner.customer_orders;
   
 SELECT *
@@ -74,17 +74,81 @@ order_id     runner_id	  pickup_time	          distance	duration	cancellation
 9	     2	          null	                  null	     	null	        Customer Cancellation
 10	     1	          2020-01-11 18:50:20	  10km	     	10minutes	null
 
---First, let's start by replacing all empty and string values with NULL values.
+--First, let's start by replacing all empty and null values with NULL values as well as removing labels from distance and time columns.
+CREATE TEMP TABLE runner_orders_precleaned AS
+SELECT
+	order_id,
+	runner_id,
+	CASE
+		WHEN pickup_time = 'null' THEN NULL
+		ELSE pickup_time
+	END AS pick_up_time,
+	CASE
+		WHEN distance = 'null' THEN NULL
+		ELSE regexp_replace(distance, '[[:alpha:]]+', '')  --this command eliminates all alphabetical characters from the string
+	END AS distance_km,                                        --www.postgresqltutorial.com/postgresql-string-functions/regexp_replace/
+	CASE
+		WHEN duration = 'null' THEN NULL
+		ELSE regexp_replace(duration, '[[:alpha:]]+', '')    --this command eliminates all alphabetical characters from the string 
+		END AS duration_mins,
+	CASE
+		WHEN cancellation = '' THEN NULL        --through exploration I noticed that not only were there null values but also empty strings present
+		WHEN cancellation = 'null' THEN NULL
+		ELSE cancellation
+		END AS cancellation               
+FROM pizza_runner.runner_orders;
 
+SELECT * 
+FROM runner_orders_precleaned
 
+--Return:
+order_id	runner_id	pick_up_time		distance_km	duration_mins	cancellation
+1		1		2020-01-01 18:15:34	20		32		null
+2		1		2020-01-01 19:10:54	20		27		null
+3		1		2020-01-03 00:12:37	13.4		20		null
+4		2		2020-01-04 13:53:03	23.4		40		null
+5		3		2020-01-08 21:10:57	10		15		null
+6		3		null			null		null		Restaurant Cancellation
+7		2		2020-01-08 21:30:45	25		25		null
+8		2		2020-01-10 00:15:02	23.4		15		null
+9		2		null			null		null		Customer Cancellation
+10		1		2020-01-11 18:50:20	10		10		null
 
+--Next, we have to change the data types of both the distance_km and duration_mins from VARCHAR to decimals and integers so we can utilize aggregate functions 
+CREATE TEMP TABLE runner_orders_cleaned AS
+SELECT order_id,
+       runner_id,
+       pick_up_time,
+       CAST(distance_km AS DECIMAL) AS distance_km,
+       CAST(duration_mins AS INTEGER) AS duration_mins,
+       cancellation
+FROM runner_orders_precleaned;
 
+SELECT * 
+FROM runner_orders_cleaned
+
+--Return:
+order_id	runner_id	pick_up_time		distance_km	duration_mins	cancellation
+1		1		2020-01-01 18:15:34	20		32		null
+2		1		2020-01-01 19:10:54	20		27		null
+3		1		2020-01-03 00:12:37	13.4		20		null
+4		2		2020-01-04 13:53:03	23.4		40		null
+5		3		2020-01-08 21:10:57	10		15		null
+6		3		null			null		null		Restaurant Cancellation
+7		2		2020-01-08 21:30:45	25		25		null
+8		2		2020-01-10 00:15:02	23.4		15		null
+9		2		null			null		null		Customer Cancellation
+10		1		2020-01-11 18:50:20	10		10		null
+
+--Notes:
+--I did not remove the duplicate pizza for the order_id 4. This is because they appeared to have ordered 3 pizzas and I assumed that the duplicate was, in fact,
+--just a second pizza of the same type.
 
 --A. Pizza Metrics
 
 --1. How many pizzas were ordered?
 SELECT COUNT(order_id)
-FROM pizza_runner.customer_orders
+FROM cust_orders
 
 --Return:
 count
@@ -92,15 +156,28 @@ count
 
 --2. How many unique customer orders were made?
 SELECT COUNT (DISTINCT order_id)
-FROM pizza_runner.customer_orders
+FROM cust_orders
 
 --Return
 count
 10
 
 --3. How many successful orders were delivered by each runner?
+SELECT runner_id,
+       COUNT(order_id)
+FROM runner_orders_cleaned
+WHERE cancellation IS NULL
+GROUP BY runner_id
+
+--Return:
+runner_id	count
+1		4
+2		3
+3		1
 
 --4. How many of each type of pizza was delivered?
+
+
 --5. How many Vegetarian and Meatlovers were ordered by each customer?
 --6. What was the maximum number of pizzas delivered in a single order?
 --7. For each customer, how many delivered pizzas had at least 1 change and how many had no changes?

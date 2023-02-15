@@ -248,8 +248,57 @@ customer_id	changes_made	no_changes_made
 
 --8. How many pizzas were delivered that had both exclusions and extras?
 
+SELECT SUM(CASE WHEN (exclusions_cleaned IS NOT NULL AND extras_cleaned IS NOT NULL) THEN 1 ELSE 0 END) AS exclusions_and_extras  
+FROM cust_orders AS c
+	JOIN runner_orders_cleaned AS d
+           ON c.order_id = d.order_id
+WHERE cancellation IS NULL
+
+--Return:
+exclusions_and_extras
+1
+
 --9. What was the total volume of pizzas ordered for each hour of the day?
+SELECT EXTRACT(HOUR FROM order_time) AS hour,
+	   COUNT(order_id) AS orders
+FROM cust_orders
+GROUP BY hour
+ORDER BY hour ASC
+
+--Return:
+hour	orders
+11	1
+13	3
+18	3
+19	1
+21	3
+23	3
+
 --10. What was the volume of orders for each day of the week?
+WITH  order_volume AS
+(SELECT
+	COUNT(order_id) AS order_count,
+	EXTRACT(dow FROM order_time) AS day
+FROM cust_orders
+GROUP BY day
+ORDER BY day)
+SELECT CASE WHEN day = 0 THEN 'SUNDAY'
+			WHEN day = 1 THEN 'MONDAY'
+            WHEN day = 2 THEN 'TUESDAY'
+            WHEN day = 3 THEN 'WEDNESDAY'
+            WHEN day = 4 THEN 'THURSDAY'
+            WHEN day = 5 THEN 'FRIDAY'
+            WHEN day = 6 THEN 'SATURDAY'
+            END AS DOW,
+            order_count
+FROM order_volume
+
+--Return:
+dow		order_count
+WEDNESDAY	5
+THURSDAY	3
+FRIDAY		1
+SATURDAY	5
 
 
 --B. Runner and Customer Experience

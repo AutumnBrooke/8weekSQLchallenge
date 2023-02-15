@@ -176,12 +176,78 @@ runner_id	count
 3		1
 
 --4. How many of each type of pizza was delivered?
+SELECT p.pizza_name,
+       COUNT(c.pizza_id) AS delivered_pizzas	   
+FROM pizza_runner.pizza_names AS p
+    JOIN cust_orders AS c
+    	ON p.pizza_id = c.pizza_id
+    JOIN runner_orders_cleaned AS o
+    	ON c.order_id = o.order_id
+WHERE cancellation IS NULL
+GROUP BY p.pizza_name
 
+--Return:
+pizza_name	delivered_pizzas
+Vegetarian	3
+Meatlovers	9
 
 --5. How many Vegetarian and Meatlovers were ordered by each customer?
+SELECT c.customer_id,
+       p.pizza_name,
+       COUNT(p.pizza_id) AS number_ordered
+FROM cust_orders AS c
+	JOIN pizza_runner.pizza_names AS p
+    	  ON c.pizza_id = p.pizza_id
+GROUP BY p.pizza_name, c.customer_id
+ORDER BY c.customer_id
+
+--Return:
+customer_id	pizza_name	number_ordered
+101		Meatlovers	2
+101		Vegetarian	1
+102		Meatlovers	2
+102		Vegetarian	1
+103		Meatlovers	3
+103		Vegetarian	1
+104		Meatlovers	3
+105		Vegetarian	1
+
 --6. What was the maximum number of pizzas delivered in a single order?
+SELECT c.order_id,
+       COUNT(c.pizza_id) AS pizzas_ordered
+FROM cust_orders AS c
+       JOIN runner_orders_cleaned AS d
+    	  ON c.order_id = d.order_id
+WHERE cancellation IS NULL
+GROUP BY c.order_id
+ORDER BY pizzas_ordered DESC
+LIMIT 1
+
+--Return: 
+order_id	pizzas_ordered
+4		3
+
 --7. For each customer, how many delivered pizzas had at least 1 change and how many had no changes?
+SELECT c.customer_id,
+       SUM(CASE WHEN (exclusions_cleaned IS NOT NULL OR extras_cleaned IS NOT NULL) THEN 1 ELSE 0 END) AS changes_made,
+       SUM(CASE WHEN (exclusions_cleaned IS NULL AND extras_cleaned IS NULL) THEN 1 ELSE 0 END) AS no_changes_made
+FROM cust_orders AS c
+	JOIN runner_orders_cleaned AS d
+           ON c.order_id = d.order_id
+WHERE cancellation IS NULL
+GROUP BY c.customer_id
+ORDER BY c.customer_id
+
+--Return:
+customer_id	changes_made	no_changes_made
+101		0		2
+102		0		3
+103		3		0
+104		2		1
+105		1		0
+
 --8. How many pizzas were delivered that had both exclusions and extras?
+
 --9. What was the total volume of pizzas ordered for each hour of the day?
 --10. What was the volume of orders for each day of the week?
 

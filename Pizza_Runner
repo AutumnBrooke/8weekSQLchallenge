@@ -22,19 +22,19 @@ order_id     customer_id   pizza_id	exclusions	extras	order_time
 --We can see here there are both null and empty values. Let's replace all empty values with null values.
 CREATE TEMP TABLE cust_orders AS
   SELECT order_id,
-		 customer_id, 
-		 pizza_id, 
-		 CASE
-	    	     WHEN exclusions = '' THEN NULL      --through exploration I found empty strings as well as null values
-		     WHEN exclusions = 'null' THEN NULL
-		     ELSE exclusions
-		 END AS exclusions_cleaned,
-		 CASE
-		     WHEN extras = '' THEN NULL          --through exploration I found empty strings as well as null values
-		     WHEN extras = 'null' THEN NULL
-		     ELSE extras
-		 END AS extras_cleaned,
-		 order_time
+         customer_id, 
+	 pizza_id, 
+	 CASE
+	 	WHEN exclusions = '' THEN NULL      --through exploration I found empty strings as well as null values
+		WHEN exclusions = 'null' THEN NULL
+			ELSE exclusions
+		END AS exclusions_cleaned,
+	 CASE
+		WHEN extras = '' THEN NULL          --through exploration I found empty strings as well as null values
+		WHEN extras = 'null' THEN NULL
+		        ELSE extras
+		END AS extras_cleaned,
+         order_time
   FROM pizza_runner.customer_orders;
   
 SELECT *
@@ -82,20 +82,20 @@ SELECT
 	CASE
 		WHEN pickup_time = 'null' THEN NULL
 		ELSE pickup_time
-	END AS pick_up_time,
+			END AS pick_up_time,
 	CASE
 		WHEN distance = 'null' THEN NULL
 		ELSE regexp_replace(distance, '[[:alpha:]]+', '')  --this command eliminates all alphabetical characters from the string
-	END AS distance_km,                                        --www.postgresqltutorial.com/postgresql-string-functions/regexp_replace/
+			END AS distance_km,                                        --www.postgresqltutorial.com/postgresql-string-functions/regexp_replace/
 	CASE
 		WHEN duration = 'null' THEN NULL
 		ELSE regexp_replace(duration, '[[:alpha:]]+', '')    --this command eliminates all alphabetical characters from the string 
-		END AS duration_mins,
+			END AS duration_mins,
 	CASE
 		WHEN cancellation = '' THEN NULL        --through exploration I noticed that not only were there null values but also empty strings present
 		WHEN cancellation = 'null' THEN NULL
 		ELSE cancellation
-		END AS cancellation               
+			END AS cancellation               
 FROM pizza_runner.runner_orders;
 
 SELECT * 
@@ -114,11 +114,13 @@ order_id	runner_id	pick_up_time		distance_km	duration_mins	cancellation
 9		2		null			null		null		Customer Cancellation
 10		1		2020-01-11 18:50:20	10		10		null
 
---Next, we have to change the data types of both the distance_km and duration_mins from VARCHAR to decimals and integers so we can utilize aggregate functions 
+--Next, we have to change the data types of both the distance_km and duration_mins from VARCHAR to decimals and integers so we can utilize aggregate functions. 
+--Let's also change the pick_up_time as a timestamp.
 CREATE TEMP TABLE runner_orders_cleaned AS
 SELECT order_id,
        runner_id,
        pick_up_time,
+       CAST(pick_up_time AS TIMESTAMP) AS pick_up_time
        CAST(distance_km AS DECIMAL) AS distance_km,
        CAST(duration_mins AS INTEGER) AS duration_mins,
        cancellation
@@ -283,7 +285,7 @@ FROM cust_orders
 GROUP BY day
 ORDER BY day)
 SELECT CASE WHEN day = 0 THEN 'SUNDAY'
-			WHEN day = 1 THEN 'MONDAY'
+	    WHEN day = 1 THEN 'MONDAY'
             WHEN day = 2 THEN 'TUESDAY'
             WHEN day = 3 THEN 'WEDNESDAY'
             WHEN day = 4 THEN 'THURSDAY'
@@ -304,11 +306,92 @@ SATURDAY	5
 --B. Runner and Customer Experience
 
 --1. How many runners signed up for each 1 week period? (i.e. week starts 2021-01-01)
+SELECT to_char(registration_date, 'WW') as  signup_week, 
+       COUNT(runner_id)
+FROM pizza_runner.runners
+GROUP BY signup_week
+ORDER BY signup_week;
+
+--Return:
+signup_week	count
+01		2
+02		1
+03		1
+
 --2. What was the average time in minutes it took for each runner to arrive at the Pizza Runner HQ to pickup the order?
+SELECT r.runner_id,
+       AVG(DATE_PART('minute', r.pick_up_time - c.order_time)) AS runner_time_to_pickup
+FROM runner_orders_cleaned AS r
+	INNER JOIN cust_orders AS c
+    	   ON r.order_id = c.order_id
+GROUP BY runner_id
+ORDER BY runner_id
+
+--Return:
+runner_id	runner_time_to_pickup
+1		15.333333333333334
+2		23.4
+3		10
+
 --3. Is there any relationship between the number of pizzas and how long the order takes to prepare?
+--The data for prep time isn't explicitly laid out, so we can only infer that the prep time is the time difference between the order time and the runner pickup time.
+WITH pizza_count AS
+ (SELECT c.order_id,                                                         --First we'll find how many pizzas are per order and the prep time for each order
+ 	 COUNT(c.pizza_id) AS pizzas_ordered,
+        (DATE_PART('minute', r.pick_up_time - c.order_time)) AS prep_time
+  FROM cust_orders AS c
+  	INNER JOIN runner_orders_cleaned AS r
+    	   ON c.order_id = r.order_id
+  WHERE r.cancellation IS NULL
+  GROUP BY c.order_id, r.pick_up_time, c.order_time)
+
+SELECT pizzas_ordered,                                      --From here, we'll figure out the prep time per pizza by dividing the prep time by # or pizzas ordered
+       prep_time/pizzas_ordered AS prep_per_pizza
+FROM pizza_count
+ORDER BY prep_per_pizza 
+
+--Return:
+pizzas_ordered	prep_per_pizza
+2		7.5
+3		9.666666666666666
+1		10
+1		10
+1		10
+1		10
+2		10.5
+1		20
+
+--We consistently see the prep time for one pizza around 10 minutes. It appears that as we add more pizzas our prep time actually goes down per pizza, presumably 
+--because our staff can prepare them at the same time or side by side. Because we don't have any orders with more than 3 pizzas, it's hard to say where the tipping
+--point is, though. For now, it seems 2 pizzas is the sweet spot where we are able to maximize our efforts.
+
 --4. What was the average distance travelled for each customer?
+SELECT c.customer_id,
+       AVG(r.distance_km) AS avg_cust_distance
+FROM cust_orders AS c
+	INNER JOIN runner_orders_cleaned AS r
+    	   ON c.order_id = r.order_id
+GROUP BY c.customer_id
+ORDER BY c.customer_id
+
+--Return:
+customer_id	avg_cust_distance
+101		20.0000000000000000
+102		16.7333333333333333
+103		23.4000000000000000
+104		10.0000000000000000
+105		25.0000000000000000
+
 --5. What was the difference between the longest and shortest delivery times for all orders?
+SELECT MAX(duration_mins)-MIN(duration_mins) AS duration_difference
+FROM runner_orders_cleaned
+
+--Return:
+duration_difference
+30
+
 --6. What was the average speed for each runner for each delivery and do you notice any trend for these values?
+
 --7. What is the successful delivery percentage for each runner?
 
 

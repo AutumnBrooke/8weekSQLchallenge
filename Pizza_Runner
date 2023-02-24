@@ -431,7 +431,29 @@ runner_id	avg_kph
 --otherwise he would have been on par with the other runners.
 
 --7. What is the successful delivery percentage for each runner?
-
+WITH delivery_count AS
+	(SELECT runner_id,
+     		SUM(CASE
+     			WHEN cancellation IS NULL THEN 1
+     				ELSE 0 
+     					END) AS delivered,
+     		SUM(CASE
+     			WHEN cancellation IS NOT NULL THEN 1
+     				ELSE 0
+     					END) AS cancelled
+     	 FROM runner_orders_cleaned
+     	 GROUP BY runner_id)
+ SELECT runner_id,
+ 	100*(CAST((delivered) as decimal(7,2))/CAST((delivered + cancelled) AS decimal(7,2))) AS percentage_delivered
+ FROM delivery_count
+ GROUP BY runner_id, delivered, cancelled
+ ORDER BY runner_id
+ 
+ --Return:
+ runner_id	percentage_delivered
+1		100.00000000000000000000
+2		75.00000000000000000000
+3		50.00000000000000000000
 
 
 --C. Ingredient Optimisation

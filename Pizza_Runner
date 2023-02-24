@@ -391,8 +391,47 @@ duration_difference
 30
 
 --6. What was the average speed for each runner for each delivery and do you notice any trend for these values?
+--Speed indicates rate of travel, so let's find the speed with which each runner traveled for each order
+SELECT runner_id,
+	   distance_km,
+	   order_id,
+	   ((distance_km/duration_mins)*60) AS KPH_per_order
+FROM runner_orders_cleaned
+WHERE cancellation IS NULL
+ORDER BY runner_id, distance_km
+
+
+--Return:
+runner_id	distance_km	order_id	kph_per_order
+1		10		10		60.00000000000000000000
+1		13.4		3		40.20000000000000000000
+1		20		1		37.50000000000000000000
+1		20		2		44.44444444444444444440
+2		23.4		8		93.6000000000000000
+2		23.4		4		35.10000000000000000000
+2		25		7		60.00000000000000000000
+3		10		5		40.00000000000000000020
+
+--Now let's look at their average speed
+
+SELECT runner_id,
+	   AVG((distance_km/duration_mins)*60) AS AVG_KPH
+FROM runner_orders_cleaned
+WHERE cancellation IS NULL
+GROUP BY runner_id
+ORDER BY runner_id
+
+--Return:
+runner_id	avg_kph
+1		45.53611111111111111110
+2		62.90000000000000000000
+3		40.00000000000000000020
+
+--Distance doesn't seem to play that much of a factor in rate of travel. It appears runner 2 had an issue with order 8 driving up his rate average greatly, 
+--otherwise he would have been on par with the other runners.
 
 --7. What is the successful delivery percentage for each runner?
+
 
 
 --C. Ingredient Optimisation
